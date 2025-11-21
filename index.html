@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tap Game Optimized – New Year Edition</title>
+<style>
+*{box-sizing:border-box;touch-action:manipulation;}
+body{
+  margin:0;padding:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  font-family:"Comic Sans MS";color:#fff;height:100dvh;overflow:hidden;
+  background:#000 center/cover no-repeat;
+  -webkit-tap-highlight-color:transparent;
+}
+#topWrap{display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:6px;}
+#message{
+  min-height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.25rem;
+  text-align:center;
+  transition:.25s;
+}
+.progress-wrap{
+  width:65vw;
+  max-width:400px;
+  height:8px;
+  background:rgba(255,255,255,.25);
+  border-radius:20px;
+  overflow:hidden;
+  transition:.25s;
+}
+.progress{height:100%;width:0;background:#FFD700;transition:width .22s linear;}
+#slot{width:100%;display:flex;justify-content:center;align-items:center;height:280px;position:relative;}
+#btn,#gift{
+  width:75vw;
+  max-width:360px;
+  position:absolute;
+  user-select:none;
+  will-change:transform,opacity;
+}
+#gift{
+  opacity:0;
+  transform:scale(.75);
+  pointer-events:none;
+  transition:.25s ease;
+  border-radius:12px;
+}
+#btn{
+  cursor:pointer;
+  transition:transform .12s ease;
+  outline:none;border:none;
+  -webkit-tap-highlight-color:transparent;
+}
+#btn:active{transform:scale(1.05);} 
+#confirmBox{
+  position:fixed;top:50%;left:50%;
+  transform:translate(-50%,-50%) scale(.85);
+  background:rgba(0,0,0,.92);
+  padding:22px;border-radius:16px;
+  text-align:center;color:#fff;
+  opacity:0;pointer-events:none;
+  backdrop-filter:blur(6px);
+  transition:.28s;
+}
+#confirmBox.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1);} 
+.confirm-btn{
+  padding:10px 25px;border:none;border-radius:12px;font-size:1rem;
+  margin:6px;font-weight:bold;cursor:pointer;transition:.2s;-webkit-tap-highlight-color:transparent;
+}
+#sellBtn{background:#0092ff;color:#fff;}
+#receiveBtn{background:#FFD800;color:#222;}
+.confirm-btn:active{transform:scale(.92);} 
+@keyframes tapPop{
+  0%{transform:scale(1);} 50%{transform:scale(1.12);} 100%{transform:scale(1);} }
+
+/* Новый Год — снег */
+.snowflake{
+  position:fixed;
+  top:-20px;
+  color:white;
+  user-select:none;
+  pointer-events:none;
+  font-size:18px;
+  animation: fall linear forwards;
+}
+@keyframes fall{
+  to{transform:translateY(120vh) rotate(360deg);}
+}
+
+/* Сугробы */
+#snowdrift{
+  position:fixed;
+  bottom:0;left:0;width:100%;
+  height:0;
+  background:white;
+  pointer-events:none;
+  z-index:5;
+  clip-path: polygon(0% 100%, 0% 60%, 10% 70%, 25% 55%, 40% 68%, 55% 52%, 70% 66%, 85% 58%, 100% 70%, 100% 100%);
+  transition:height 1s linear;
+}
+</style>
+</head>
+<body>
+<div id="snowdrift"></div>
+<div id="topWrap">
+  <div id="message">👆 Нажимай, чтобы получить подарок!</div>
+  <div class="progress-wrap"><div id="bar" class="progress"></div></div>
+</div>
+
+<div id="slot">
+  <img id="btn" loading="eager">
+  <img id="gift" loading="lazy" alt="gift">
+</div>
+
+<div id="confirmBox">
+  <p>Продать или получить подарок?</p>
+  <button id="sellBtn" class="confirm-btn">ПРОДАТЬ</button>
+  <button id="receiveBtn" class="confirm-btn">ПОЛУЧИТЬ</button>
+</div>
+
+<script>
+const msg=document.getElementById("message"),
+      btn=document.getElementById("btn"),
+      gift=document.getElementById("gift"),
+      bar=document.getElementById("bar"),
+      box=document.getElementById("confirmBox"),
+      sell=document.getElementById("sellBtn"),
+      recv=document.getElementById("receiveBtn"),
+      prog=document.querySelector(".progress-wrap");
+
+const backgrounds=["fon1.jpg","fon2.jpg"];
+const btns=["btn1.webp","btn2.webp"];
+const gifts=Array.from({length:10},(_,i)=>`g${i+1}.webp`);
+
+function randomFloat(){
+  try{
+    if(window.crypto && crypto.getRandomValues){
+      const arr=new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      return arr[0]/4294967296;
+    }
+  }catch(e){}
+  return Math.random();
+}
+
+const randomBg=backgrounds[Math.floor(randomFloat()*backgrounds.length)];
+const randomBtn=btns[Math.floor(randomFloat()*btns.length)];
+const randomGift=gifts[Math.floor(randomFloat()*gifts.length)];
+const randomAnim=Math.random()<0.5?"L1.webp":"L2.webp";
+
+document.body.style.background=`#000 url('${randomBg}') center/cover no-repeat`;
+btn.src=randomBtn;
+
+// предзагрузка
+[randomBg,randomBtn,randomGift,randomAnim].forEach(src=>{fetch(src).then(r=>r.blob()).then(b=>createImageBitmap(b)).catch(()=>{});});
+
+let taps=0,total=5,started=false;
+
+btn.addEventListener("click",tap);
+
+function tap(){
+  btn.style.animation="tapPop .18s ease";
+  setTimeout(()=>btn.style.animation="",180);
+
+  if(!started){
+    started=true;
+    msg.style.opacity=0;
+    prog.style.opacity=0;
+  }
+
+  taps++;
+  bar.style.width=(taps/total*100)+"%";
+
+  if(taps===total) revealGift();
+}
+
+function revealGift(){
+  btn.style.opacity=0;
+  btn.style.pointerEvents="none";
+  setTimeout(()=>btn.style.display="none",200);
+  prog.style.display="none";
+
+  const img=new Image();
+  img.src=randomGift;
+  img.decoding="async";
+  img.onload=()=>{
+    gift.src=randomGift;
+    const special=['g9.webp','g16.webp','g18.webp'];
+    if(special.includes(randomGift)){
+      gift.style.background='rgba(255,255,255,0.12)';
+      gift.style.borderRadius='18px';
+      gift.style.padding='8px';
+    } else {
+      gift.style.background='none';
+      gift.style.padding='0';
+    }
+    gift.style.opacity=1;
+    gift.style.transform="scale(1)";
+    gift.style.pointerEvents="auto";
+    msg.style.opacity=1;
+    msg.textContent="🎁 Твой подарок готов!";
+  };
+}
+
+gift.onclick=()=>box.classList.add("show");
+sell.onclick=()=>finish("sell");
+recv.onclick=()=>finish("add");
+
+function finish(type){
+  box.classList.remove("show");
+  gift.style.opacity=0;
+  gift.style.transform="scale(.75)";
+  setTimeout(()=>gift.style.display="none",150);
+
+  const text=type==="sell"
+    ?"💰 Звезды скоро будут зачислены ✨\n⭐ Возвращайся завтра за наградами!"
+    :"🎁 Подарок скоро будет добавлен в профиль 🎉\n✨ Приходи завтра за новым!";
+  msg.style.fontSize="1.4rem";
+  msg.innerText=text;
+
+  const anim=document.createElement("img");
+  anim.src=randomAnim;
+  Object.assign(anim.style,{
+    position:"absolute",left:"50%",top:"50%",
+    transform:"translate(-50%,-50%)",
+    width:"55vw",maxWidth:"270px",opacity:0,
+    transition:"opacity 0.4s ease",pointerEvents:"none",zIndex:"10"
+  });
+  document.body.appendChild(anim);
+  requestAnimationFrame(()=>anim.style.opacity=1);
+}
+
+// ===== СНЕГОПАД =====
+const snowIcons=["❄","✦","✧","✺","✼"];
+function createSnow(){
+  const s=document.createElement("div");
+  s.className="snowflake";
+  s.textContent=snowIcons[Math.floor(Math.random()*snowIcons.length)];
+  s.style.left=Math.random()*100+"vw";
+  s.style.fontSize=12+Math.random()*20+"px";
+  s.style.animationDuration=4+Math.random()*6+"s";
+  document.body.appendChild(s);
+  setTimeout(()=>s.remove(),10000);
+}
+
+setInterval(createSnow,60);
+
+// ===== СУГРОБ РАСТЁТ =====
+const drift=document.getElementById("snowdrift");
+let driftHeight=0;
+let driftTimer=0;
+
+const driftInterval=setInterval(()=>{
+  driftTimer+=1;
+  driftHeight=Math.min(20, driftTimer*(20/15)); // 15s → 20% высоты
+  drift.style.height=driftHeight+"vh";
+  if(driftHeight>=20) clearInterval(driftInterval);
+},1000);
+
+</script>
+</body>
+</html>
